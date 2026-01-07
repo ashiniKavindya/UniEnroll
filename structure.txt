@@ -1,0 +1,22 @@
+moduleflow/
+├─ frontend/
+│  ├─ app/
+│  │  ├─ login/
+│  │  ├─ dashboard/
+│  │  ├─ enroll/
+│  │  ├─ admin/
+│  │  ├─ api/
+│  │  │  ├─ auth/
+│  │  │  └─ enroll/
+│  ├─ lib/
+│  │  ├─ auth.ts
+│  │  ├─ db.ts
+│  │  └─ n8n.ts
+│  ├─ components/
+│  ├─ types/
+│  ├─ public/
+│  ├─ .env.local
+│  └─ package.json
+├─ automation/ (optional later)
+│  └─ n8n-workflows/
+├─ README.md
