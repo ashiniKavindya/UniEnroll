@@ -34,3 +34,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage outputs
+*.test
+*.out
+coverage.out
+
+# Build output
+/bin/
+/obj/
+
+# Vendor (optional - remove if you commit vendored deps)
+/vendor/
+
+# Go workspace
+go.work
