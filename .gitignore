@@ -55,5 +55,7 @@ coverage.out
 # Vendor (optional - remove if you commit vendored deps)
 /vendor/
 
+serviceAccountKey.json
+
 # Go workspace
 go.work
