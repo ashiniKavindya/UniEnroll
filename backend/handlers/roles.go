@@ -1,8 +1,13 @@
 package handlers
 
 import (
+	"encoding/csv"
+	"fmt"
+	"io"
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -372,5 +377,244 @@ func CreateUserAccount(c *gin.Context) {
 		"userID":       userID,
 		"email":        req.Email,
 		"tempPassword": password, // Return in response for admin reference (in dev)
+	})
+}
+
+type importStudentFailure struct {
+	Row   int    `json:"row"`
+	Email string `json:"email,omitempty"`
+	Error string `json:"error"`
+}
+
+type importedStudentCredential struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	UserID   string `json:"userID"`
+	Password string `json:"tempPassword"`
+}
+
+// ImportStudentsCSV imports student accounts from CSV (Admin only)
+// Required headers: name,email,departmentID
+// Optional headers: yearOfStudy,studentNumber,enrollmentYear
+func ImportStudentsCSV(c *gin.Context) {
+	f, ok := c.MustGet("firestore").(*firestore.Client)
+	if !ok || f == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database not available"})
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing CSV file field 'file'"})
+		return
+	}
+
+	opened, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open uploaded file"})
+		return
+	}
+	defer opened.Close()
+
+	reader := csv.NewReader(opened)
+	headers, err := reader.Read()
+	if err != nil {
+		if err == io.EOF {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "CSV file is empty"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid CSV header"})
+		return
+	}
+
+	normalize := func(s string) string {
+		s = strings.TrimSpace(strings.ToLower(s))
+		s = strings.ReplaceAll(s, "_", "")
+		s = strings.ReplaceAll(s, "-", "")
+		s = strings.ReplaceAll(s, " ", "")
+		return s
+	}
+
+	idx := map[string]int{}
+	for i, h := range headers {
+		idx[normalize(h)] = i
+	}
+
+	find := func(keys ...string) int {
+		for _, k := range keys {
+			if v, exists := idx[k]; exists {
+				return v
+			}
+		}
+		return -1
+	}
+
+	nameIdx := find("name", "fullname")
+	emailIdx := find("email")
+	departmentIdx := find("departmentid", "department")
+	yearIdx := find("yearofstudy", "year")
+	studentNumberIdx := find("studentnumber")
+	enrollmentYearIdx := find("enrollmentyear")
+
+	if nameIdx == -1 || emailIdx == -1 || departmentIdx == -1 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "CSV must include headers: name,email,departmentID",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	created := 0
+	skipped := 0
+	processed := 0
+	failures := make([]importStudentFailure, 0)
+	credentials := make([]importedStudentCredential, 0)
+
+	currentYear := time.Now().Year()
+	rowNumber := 1
+
+	for {
+		row, readErr := reader.Read()
+		if readErr == io.EOF {
+			break
+		}
+		rowNumber++
+
+		if readErr != nil {
+			failures = append(failures, importStudentFailure{Row: rowNumber, Error: "invalid CSV row format"})
+			continue
+		}
+
+		if len(row) == 0 {
+			continue
+		}
+
+		get := func(i int) string {
+			if i < 0 || i >= len(row) {
+				return ""
+			}
+			return strings.TrimSpace(row[i])
+		}
+
+		name := get(nameIdx)
+		email := strings.ToLower(get(emailIdx))
+		departmentID := get(departmentIdx)
+
+		if name == "" || email == "" || departmentID == "" {
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "name, email and departmentID are required"})
+			continue
+		}
+
+		yearOfStudy := 1
+		if y := get(yearIdx); y != "" {
+			parsedYear, parseErr := strconv.Atoi(y)
+			if parseErr != nil || parsedYear < 1 {
+				failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "invalid yearOfStudy"})
+				continue
+			}
+			yearOfStudy = parsedYear
+		}
+
+		enrollmentYear := currentYear
+		if ey := get(enrollmentYearIdx); ey != "" {
+			parsedEnrollmentYear, parseErr := strconv.Atoi(ey)
+			if parseErr != nil || parsedEnrollmentYear < 1900 {
+				failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "invalid enrollmentYear"})
+				continue
+			}
+			enrollmentYear = parsedEnrollmentYear
+		}
+
+		processed++
+
+		q := f.Collection("users").Where("email", "==", email).Limit(1)
+		docs := q.Documents(ctx)
+		if _, existingErr := docs.Next(); existingErr == nil {
+			skipped++
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "email already exists"})
+			continue
+		}
+
+		password, genErr := utils.GeneratePassword(12)
+		if genErr != nil {
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "failed to generate password"})
+			continue
+		}
+
+		hash, hashErr := bcrypt.GenerateFromPassword([]byte(password), 10)
+		if hashErr != nil {
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "failed to hash password"})
+			continue
+		}
+
+		user := models.User{
+			Name:                name,
+			Email:               email,
+			PasswordHash:        string(hash),
+			Role:                models.RoleStudent,
+			ForcePasswordChange: true,
+		}
+
+		userRef, _, userErr := f.Collection("users").Add(ctx, user)
+		if userErr != nil {
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "failed to create user"})
+			continue
+		}
+
+		student := models.Student{
+			UserID:         userRef.ID,
+			StudentNumber:  get(studentNumberIdx),
+			DepartmentID:   departmentID,
+			YearOfStudy:    yearOfStudy,
+			EnrollmentYear: enrollmentYear,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		}
+
+		_, studentErr := f.Collection("students").Doc(userRef.ID).Set(ctx, student)
+		if studentErr != nil {
+			_, _ = f.Collection("users").Doc(userRef.ID).Delete(ctx)
+			failures = append(failures, importStudentFailure{Row: rowNumber, Email: email, Error: "failed to create student profile"})
+			continue
+		}
+
+		credentials = append(credentials, importedStudentCredential{
+			Name:     name,
+			Email:    email,
+			UserID:   userRef.ID,
+			Password: password,
+		})
+
+		go utils.SendWelcomeEmail(email, name, userRef.ID, password, models.RoleStudent)
+		created++
+	}
+
+	if created == 0 && len(failures) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message":   "no students imported",
+			"processed": processed,
+			"created":   created,
+			"skipped":   skipped,
+			"failures":  failures,
+		})
+		return
+	}
+
+	status := http.StatusOK
+	if len(failures) > 0 {
+		status = http.StatusMultiStatus
+	}
+
+	c.JSON(status, gin.H{
+		"message":      fmt.Sprintf("import completed: %d created, %d skipped", created, skipped),
+		"processed":    processed,
+		"created":      created,
+		"skipped":      skipped,
+		"credentials":  credentials,
+		"failures":     failures,
+		"requiredCSV":  []string{"name", "email", "departmentID"},
+		"optionalCSV":  []string{"yearOfStudy", "studentNumber", "enrollmentYear"},
 	})
 }

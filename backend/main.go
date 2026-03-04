@@ -33,6 +33,13 @@ func main() {
 	// Setup Gin
 	r := gin.Default()
 
+	// Set trusted proxies and platform (security: don't trust all proxies)
+	// Set to empty for development (no proxies), or specify trusted IPs for production
+	// Examples:
+	// r.SetTrustedProxies([]string{"127.0.0.1", "192.168.1.0/24"}) // for specific IPs
+	// r.SetTrustedProxies([]string{}) // for localhost/no proxies (development)
+	r.SetTrustedProxies(nil) // Don't trust any proxies (safest for development)
+
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -72,6 +79,8 @@ func main() {
 		protected.GET("/modules/:moduleID", handlers.GetModule)
 		protected.GET("/modules/search", handlers.GetModulesByDepartment)
 		protected.GET("/departments", handlers.GetAllDepartments)
+		protected.GET("/faculties", handlers.GetAllFaculties)
+		protected.GET("/faculties/:facultyID", handlers.GetFaculty)
 
 		// Student routes
 		protected.POST("/enrollments", handlers.EnrollModule)
@@ -84,10 +93,14 @@ func main() {
 		{
 			admin.POST("/admin/create", handlers.CreateAdminProfile)
 			admin.POST("/admin/users", handlers.CreateUserAccount)
+			admin.POST("/admin/students/import", handlers.ImportStudentsCSV)
 			admin.POST("/lecturer/create", handlers.CreateLecturerProfile)
 			admin.POST("/student/create", handlers.CreateStudentProfile)
 			admin.POST("/modules", handlers.CreateModule)
 			admin.POST("/departments", handlers.CreateDepartment)
+			admin.POST("/faculties", handlers.CreateFaculty)
+			admin.PUT("/faculties/:facultyID", handlers.UpdateFaculty)
+			admin.DELETE("/faculties/:facultyID", handlers.DeleteFaculty)
 		}
 	}
 

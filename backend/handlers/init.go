@@ -23,8 +23,85 @@ func InitDB(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Create sample users
+	batch := f.Batch()
+
+	// Create sample faculties
+	facultyScience := f.Collection("faculties").NewDoc()
+	facultyEng := f.Collection("faculties").NewDoc()
+	facultyArts := f.Collection("faculties").NewDoc()
+
+	faculties := map[*firestore.DocumentRef]models.Faculty{
+		facultyScience: {
+			FacultyID:   facultyScience.ID,
+			Name:        "Faculty of Science",
+			Code:        "SCI",
+			Description: "Natural sciences and mathematics",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		facultyEng: {
+			FacultyID:   facultyEng.ID,
+			Name:        "Faculty of Engineering",
+			Code:        "ENG",
+			Description: "Engineering and technology",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		facultyArts: {
+			FacultyID:   facultyArts.ID,
+			Name:        "Faculty of Arts",
+			Code:        "ARTS",
+			Description: "Humanities and social sciences",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for doc, faculty := range faculties {
+		batch.Set(doc, faculty)
+	}
+
+	// Create sample departments
+	deptCS := f.Collection("departments").NewDoc()
+	deptMath := f.Collection("departments").NewDoc()
+	deptEng := f.Collection("departments").NewDoc()
+
+	departments := map[*firestore.DocumentRef]models.Department{
+		deptCS: {
+			DepartmentID: deptCS.ID,
+			Name:         "Department of Computer Science",
+			Code:         "CS",
+			FacultyID:    facultyScience.ID,
+			Description:  "Computing and software development",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+		deptMath: {
+			DepartmentID: deptMath.ID,
+			Name:         "Department of Mathematics",
+			Code:         "MATH",
+			FacultyID:    facultyScience.ID,
+			Description:  "Pure and applied mathematics",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+		deptEng: {
+			DepartmentID: deptEng.ID,
+			Name:         "Department of English",
+			Code:         "ENG",
+			FacultyID:    facultyArts.ID,
+			Description:  "English language and literature",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}
+
+	for doc, dept := range departments {
+		batch.Set(doc, dept)
+	}
+
 	adminHash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 10)
+	lecturerHash, _ := bcrypt.GenerateFromPassword([]byte("lecturer123"), 10)
 	studentHash, _ := bcrypt.GenerateFromPassword([]byte("student123"), 10)
 
 	users := map[string]models.User{
@@ -33,22 +110,24 @@ func InitDB(c *gin.Context) {
 			Email:        "admin@uni.edu",
 			PasswordHash: string(adminHash),
 			Role:         "admin",
+			ForcePasswordChange: false,
 		},
-		"student1": {
-			Name:         "John Doe",
-			Email:        "student1@uni.edu",
-			PasswordHash: string(studentHash),
-			Role:         "user",
+		"lecturer": {
+			Name:         "John Lecturer",
+			Email:        "john@uni.edu",
+			PasswordHash: string(lecturerHash),
+			Role:         "lecturer",
+			ForcePasswordChange: false,
 		},
-		"student2": {
-			Name:         "Jane Smith",
-			Email:        "student2@uni.edu",
+		"student": {
+			Name:         "Jane Student",
+			Email:        "jane@uni.edu",
 			PasswordHash: string(studentHash),
-			Role:         "user",
+			Role:         "student",
+			ForcePasswordChange: false,
 		},
 	}
 
-	batch := f.Batch()
 	for _, u := range users {
 		doc := f.Collection("users").NewDoc()
 		batch.Set(doc, u)
@@ -120,9 +199,11 @@ func InitDB(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Database initialized successfully",
 		"data": gin.H{
-			"users":   len(users),
-			"courses": len(courses),
-			"modules": len(modules),
+			"faculties":   len(faculties),
+			"departments": len(departments),
+			"users":       len(users),
+			"courses":     len(courses),
+			"modules":     len(modules),
 		},
 	})
 }

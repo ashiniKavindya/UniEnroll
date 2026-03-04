@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -35,25 +36,31 @@ func Login(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Printf("[LOGIN DEBUG] Searching for email: %s", req.Email)
 	q := f.Collection("users").Where("email", "==", req.Email).Limit(1)
 	docs := q.Documents(ctx)
 	doc, err := docs.Next()
 	if err != nil {
+		log.Printf("[LOGIN DEBUG] User not found or query error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
+	log.Printf("[LOGIN DEBUG] User found with ID: %s", doc.Ref.ID)
 
 	var u models.User
 	if err := doc.DataTo(&u); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
 	}
+	log.Printf("[LOGIN DEBUG] User data retrieved - Email: %s, Role: %s, PasswordHashLen: %d", u.Email, u.Role, len(u.PasswordHash))
 
 	// check password
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password)); err != nil {
+		log.Printf("[LOGIN DEBUG] Password comparison failed: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
+	log.Printf("[LOGIN DEBUG] Password comparison successful")
 
 	// generate token
 	token, err := utils.GenerateToken(doc.Ref.ID, u.Role)

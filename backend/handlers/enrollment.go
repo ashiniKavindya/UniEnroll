@@ -16,7 +16,7 @@ func CreateDepartment(c *gin.Context) {
 	type deptRequest struct {
 		Name        string `json:"name" binding:"required"`
 		Code        string `json:"code" binding:"required"`
-		FacultyName string `json:"facultyName"`
+		FacultyID   string `json:"facultyID"`
 		HOD         string `json:"hod"`
 		Description string `json:"description"`
 	}
@@ -39,7 +39,7 @@ func CreateDepartment(c *gin.Context) {
 	docRef, _, err := f.Collection("departments").Add(ctx, map[string]interface{}{
 		"name":        req.Name,
 		"code":        req.Code,
-		"facultyName": req.FacultyName,
+		"facultyID":   req.FacultyID,
 		"hod":         req.HOD,
 		"description": req.Description,
 		"createdAt":   time.Now(),

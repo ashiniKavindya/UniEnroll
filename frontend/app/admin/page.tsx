@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken, removeToken } from '@/lib/auth';
-import { authAPI, moduleAPI } from '@/lib/api';
+import { adminAPI, authAPI, moduleAPI } from '@/lib/api';
 
 interface Module {
   moduleID: string;
@@ -16,6 +16,15 @@ interface Module {
   type?: string;
   departmentID?: string;
   yearOfStudy?: number;
+}
+
+interface ImportSummary {
+  message: string;
+  processed: number;
+  created: number;
+  skipped: number;
+  failures: Array<{ row: number; email?: string; error: string }>;
+  credentials: Array<{ name: string; email: string; userID: string; tempPassword: string }>;
 }
 
 export default function AdminPage() {
@@ -39,6 +48,10 @@ export default function AdminPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -123,6 +136,31 @@ export default function AdminPage() {
     router.push('/login');
   };
 
+  const handleImportStudents = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setImportError('');
+    setImportSummary(null);
+
+    if (!csvFile) {
+      setImportError('Please choose a CSV file first');
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const token = getToken();
+      if (!token) throw new Error('No token found');
+
+      const result = await adminAPI.importStudentsCSV(token, csvFile);
+      setImportSummary(result);
+      setCsvFile(null);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Failed to import students');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -165,6 +203,67 @@ export default function AdminPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-2">Import Students (CSV)</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Required columns: <strong>name, email, departmentID</strong>. Optional: yearOfStudy, studentNumber, enrollmentYear.
+          </p>
+
+          <form onSubmit={handleImportStudents} className="flex flex-col md:flex-row gap-3 md:items-center">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+              className="block w-full md:w-auto text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+            />
+            <button
+              type="submit"
+              disabled={importing}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {importing ? 'Importing...' : 'Upload CSV'}
+            </button>
+          </form>
+
+          {importError && (
+            <div className="mt-4 p-3 rounded bg-red-100 text-red-700">{importError}</div>
+          )}
+
+          {importSummary && (
+            <div className="mt-4 space-y-3">
+              <div className="p-3 rounded bg-green-100 text-green-800">
+                {importSummary.message} | Processed: {importSummary.processed}, Created: {importSummary.created}, Skipped: {importSummary.skipped}
+              </div>
+
+              {importSummary.failures.length > 0 && (
+                <div className="p-3 rounded bg-yellow-100 text-yellow-900">
+                  <p className="font-semibold mb-1">Rows with issues:</p>
+                  <ul className="text-sm max-h-40 overflow-auto space-y-1">
+                    {importSummary.failures.map((failure, index) => (
+                      <li key={`${failure.row}-${index}`}>
+                        Row {failure.row}{failure.email ? ` (${failure.email})` : ''}: {failure.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {importSummary.credentials.length > 0 && (
+                <div className="p-3 rounded bg-blue-50 border border-blue-200">
+                  <p className="font-semibold text-blue-900 mb-1">Temporary credentials (save these now):</p>
+                  <div className="max-h-40 overflow-auto text-sm space-y-1 text-blue-900">
+                    {importSummary.credentials.map((item) => (
+                      <p key={item.userID}>
+                        {item.name} ({item.email}) - {item.tempPassword}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Add Module Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex justify-between items-center mb-4">

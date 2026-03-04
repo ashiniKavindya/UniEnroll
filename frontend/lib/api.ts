@@ -98,6 +98,15 @@ export interface CreateUserResponse {
   tempPassword?: string;
 }
 
+export interface ImportStudentsResponse {
+  message: string;
+  processed: number;
+  created: number;
+  skipped: number;
+  failures: Array<{ row: number; email?: string; error: string }>;
+  credentials: Array<{ name: string; email: string; userID: string; tempPassword: string }>;
+}
+
 export const adminAPI = {
   createUser: async (token: string, data: CreateUserRequest): Promise<CreateUserResponse> => {
     const response = await fetch(`${API_URL}/api/admin/users`, {
@@ -113,6 +122,26 @@ export const adminAPI = {
       throw new Error(error.error || 'Failed to create user');
     }
     return response.json();
+  },
+
+  importStudentsCSV: async (token: string, file: File): Promise<ImportStudentsResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_URL}/api/admin/students/import`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok && response.status !== 207) {
+      throw new Error(data.error || data.message || 'Failed to import students');
+    }
+
+    return data;
   },
 };
 
