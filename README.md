@@ -42,27 +42,25 @@ ModuleFlow addresses these challenges by combining **automation, rule-based vali
 ModuleFlow follows a **scalable, separation-of-concerns architecture**:
 
 ```
-Student
+Student/Admin
  ↓
-Next.js Frontend (Enrollment Form + Dashboard)
+Next.js Frontend (Dashboard + Forms)
  ↓
-Next.js API Routes (Validation & Security)
+Go Backend API (Gin Framework)
  ↓
-n8n Workflow (Automation Engine)
+Firebase Firestore Database
  ↓
-AI Decision + Rule Checks
- ↓
-Database + Notifications
+Email Notifications
 ```
 
 **Roles & Flow:**
 
 1. **Student:** Submits enrollment requests through a secure dashboard
-2. **Next.js API Routes:** Validate requests and forward to n8n webhook
-3. **n8n Workflow:** Checks prerequisites, capacity, and automates notifications
-4. **AI Service:** Evaluates special cases and provides recommendations
-5. **Database:** Stores all enrollment data and tracks status
-6. **Notifications:** Sends emails or alerts to students and admins
+2. **Next.js Frontend:** Handles UI, forms, and client-side validation
+3. **Go Backend API:** Processes requests, validates rules, manages authentication with JWT
+4. **Firebase Firestore:** Stores all enrollment data, users, modules, and departments
+5. **Admin:** Reviews and approves/rejects enrollment requests
+6. **Notifications:** Sends email updates to students and admins
 
 ---
 
@@ -70,19 +68,18 @@ Database + Notifications
 
 | Layer                            | Technology                      | Purpose                                                          |
 | -------------------------------- | ------------------------------- | ---------------------------------------------------------------- |
-| **Frontend**                     | Next.js (React)                 | Secure student/admin UI, form submission, dashboard              |
-| **Authentication**               | NextAuth.js                     | Role-based authentication (student/admin) and session management |
-| **Automation / Workflow Engine** | n8n                             | Orchestrates enrollment workflows, AI evaluation, notifications  |
-| **AI / Decision Support**        | OpenAI / LLM                    | Analyzes special cases, flags exceptions, recommends approvals   |
-| **Database**                     | PostgreSQL / Supabase           | Stores students, modules, and enrollment requests                |
-| **Notifications**                | Email (SMTP) / Telegram / Slack | Sends enrollment updates and admin alerts                        |
-| **Styling & UI**                 | Tailwind CSS / Material UI      | Modern, responsive interface for dashboards and forms            |
+| **Backend**                      | Go 1.23 (Gin Framework)         | RESTful API server for enrollment operations                     |
+| **Frontend**                     | Next.js 16 (React 19)           | Secure student/admin UI, form submission, dashboard              |
+| **Authentication**               | JWT + NextAuth.js               | Role-based authentication (student/admin) and session management |
+| **Database**                     | Firebase Firestore              | Stores students, modules, enrollments, and user data             |
+| **Notifications**                | Email (SMTP)                    | Sends enrollment updates and admin alerts                        |
+| **Styling & UI**                 | Tailwind CSS 4                  | Modern, responsive interface for dashboards and forms            |
 
 > Optional Enhancements:
 >
 > * Vercel deployment for Next.js
-> * Supabase Edge Functions for advanced backend logic
 > * Docker for containerized deployment
+> * AI/LLM integration for enrollment recommendations
 
 ---
 
@@ -91,114 +88,175 @@ Database + Notifications
 ### 1️⃣ Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/moduleflow.git
-cd moduleflow
+git clone https://github.com/yourusername/UniEnroll.git
+cd UniEnroll
 ```
 
-### 2️⃣ Install frontend dependencies
+### 2️⃣ Install Go (Backend)
 
 ```bash
+# Download and install Go 1.23+
+cd /tmp
+curl -L https://go.dev/dl/go1.23.0.linux-amd64.tar.gz -o go.tar.gz
+sudo tar -C /usr/local -xzf go.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+go version  # Verify installation
+```
+
+### 3️⃣ Install Node.js 20+ (Frontend)
+
+```bash
+# Install Node.js 20 (required for Next.js 16)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version  # Should be v20.x or higher
+```
+
+### 4️⃣ Set up Firebase
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Create a new project (or use existing)
+3. Enable **Firestore Database** in your project
+4. Go to **Project Settings** → **Service Accounts** tab
+5. Click **"Generate New Private Key"** button
+6. Download the JSON file and save as `backend/serviceAccount.json`
+7. Note your **Project ID** from the project settings
+
+### 5️⃣ Configure Backend Environment
+
+Create `backend/.env`:
+
+```env
+# Firebase Configuration
+FIREBASE_PROJECT_ID=your-firebase-project-id
+
+# Server Configuration
+PORT=8080
+
+# JWT Secret for authentication
+JWT_SECRET=your-jwt-secret-key-change-this-in-production
+
+# Email Configuration (optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+```
+
+> 🔑 **Important:** Never expose API keys or service account files publicly.
+
+### 6️⃣ Install Backend Dependencies
+
+```bash
+cd backend
+go mod download
+```
+
+### 7️⃣ Install Frontend Dependencies
+
+```bash
+cd ../frontend
 npm install
 ```
 
-### 3️⃣ Set up environment variables
+### 8️⃣ Run the Backend
 
-Create a `.env` file in the root directory:
-
-```env
-# NextAuth.js
-NEXTAUTH_SECRET=your_random_secret_key
-NEXTAUTH_URL=http://localhost:3000
-
-# Database
-DATABASE_URL=postgres://username:password@localhost:5432/moduleflow_db
-
-# n8n Webhook
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/enrollment
-N8N_API_KEY=your_n8n_api_key
-
-# OpenAI (AI Evaluation)
-OPENAI_API_KEY=your_openai_api_key
-```
-
-> 🔑 **Important:** Never expose API keys publicly.
-
-### 4️⃣ Run the Next.js frontend
+Open a terminal and run:
 
 ```bash
+cd backend
+export GOOGLE_APPLICATION_CREDENTIALS="$PWD/serviceAccount.json"
+go run main.go
+```
+
+✅ Backend runs on [http://localhost:8080](http://localhost:8080)
+
+### 9️⃣ Run the Frontend
+
+Open another terminal and run:
+
+```bash
+cd frontend
 npm run dev
 ```
 
-* Visit [http://localhost:3000](http://localhost:3000)
-* Login as **student** or **admin** (create accounts in DB)
+✅ Frontend runs on [http://localhost:3000](http://localhost:3000)
 
-### 5️⃣ Run n8n
+### 🔟 Initialize Database (First Time)
+
+Make a POST request to seed initial data:
 
 ```bash
-n8n
+curl -X POST http://localhost:8080/init
 ```
 
-* Import the **ModuleFlow workflow** JSON
-* Ensure webhooks and AI nodes are configured
+### ✅ Test the System
 
-### 6️⃣ Initialize the Database
+1. Visit [http://localhost:3000](http://localhost:3000)
+2. Register a new account or login
+3. Browse modules and departments
+4. Submit enrollment requests
+5. Test admin features (if you have admin role)
 
-* Use **Supabase / PostgreSQL**
-* Run the `db/schema.sql` script to create tables:
-
-  * `students`
-  * `modules`
-  * `enrollment_requests`
-
-### 7️⃣ Test the System
-
-1. Log in as a student
-2. Submit an enrollment request
-3. Check:
-
-   * Dashboard for status
-   * Admin interface for approval/rejection
-   * Email or Telegram notifications
-
-### 8️⃣ Deployment (Optional)
+### 🚀 Deployment (Optional)
 
 * **Frontend:** Deploy Next.js to **Vercel**
-* **n8n:** Deploy to **n8n.cloud** or self-host with Docker
-* **Database:** Use **Supabase** or managed PostgreSQL
+* **Backend:** Deploy Go to **Google Cloud Run**, **Heroku**, or **Railway**
+* **Database:** Already on Firebase (cloud-hosted)
 
 ---
 
-## 🧠 How AI Works in ModuleFlow
+## 🔑 API Endpoints
 
-AI is used **only for intelligent recommendations**, not final decisions. It:
+### Authentication
+- `POST /auth/login` - User login
+- `POST /auth/register` - User registration
 
-* Analyzes free-text justification for special enrollment requests
-* Flags exceptional cases
-* Suggests approval or rejection for admin review
+### Protected Routes (Requires JWT)
+- `GET /api/profile` - Get user profile
+- `POST /api/change-password` - Change password
+- `GET /api/modules` - Get all modules
+- `GET /api/modules/:moduleID` - Get specific module
+- `GET /api/modules/search` - Search modules by department
+- `GET /api/departments` - Get all departments
 
-**Example:**
+### Student Routes
+- `POST /api/enrollments` - Enroll in a module
+- `GET /api/enrollments/:studentID` - Get student enrollments
+- `PUT /api/enrollments/:enrollmentID/drop` - Drop a module
 
-> “I failed this module due to medical reasons and request re-enrollment.”
-> AI flags it as **special case → admin review → recommendation generated**
+### Admin Routes (Requires admin role)
+- `POST /api/admin/create` - Create admin profile
+- `POST /api/admin/users` - Create user account
+- `POST /api/lecturer/create` - Create lecturer profile
+- `POST /api/student/create` - Create student profile
+- `POST /api/modules` - Create new module
+- `POST /api/departments` - Create new department
+
+### Database Initialization
+- `POST /init` - Seed database with initial data
 
 ---
 
 ## 🔐 Security & Roles
 
-* **Students:** Request modules, track status
-* **Admins / Lecturers:** Review, approve, or reject requests
-* **System (n8n):** Workflow automation only
-* **RBAC:** Role-based access control ensures secure operations
-
-> n8n webhook is **private**, only Next.js API routes can call it.
+* **Students:** Request modules, view enrollments, track status
+* **Lecturers:** Manage course modules
+* **Admins:** Full system access, create users, approve/reject requests
+* **RBAC:** Role-based access control via JWT middleware
+* **Password Security:** Bcrypt hashing for all passwords
+* **CORS:** Configured for cross-origin requests between frontend and backend
 
 ---
 
 ## 🌟 Why ModuleFlow is Valuable
 
 * Solves a **real-world university problem**
-* Demonstrates **automation + AI integration**
-* Shows **system design, security, and modern frontend skills**
+* Demonstrates **modern web architecture** with Go backend and Next.js frontend
+* Shows **system design, security, and full-stack development skills**
+* Uses **Firebase Firestore** for scalable cloud database
+* Implements **JWT authentication** and role-based access control
 * Ideal for **academic projects, portfolio, or production-ready prototypes**
 
 ---
@@ -207,8 +265,11 @@ AI is used **only for intelligent recommendations**, not final decisions. It:
 
 * Add **multi-semester scheduling & waitlists**
 * Integrate **analytics dashboard** for enrollment statistics
-* Extend AI to **suggest module combinations** for students based on degree and performance
+* Add **AI/LLM integration** for smart module recommendations
+* Implement **real-time notifications** using WebSockets
 * Add **mobile-friendly design / PWA support**
+* Integrate **n8n workflow automation** for complex approval processes
+* Add **payment integration** for enrollment fees
 
 ---
 

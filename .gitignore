@@ -59,3 +59,8 @@ serviceAccountKey.json
 
 # Go workspace
 go.work
+
+# Local credentials
+backend/firebas.json
+backend/*firebase-adminsdk*.json
+*:Zone.Identifier
