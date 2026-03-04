@@ -11,6 +11,7 @@ import (
 
 	"backend/config"
 	"backend/handlers"
+	"backend/middleware"
 )
 
 func main() {
@@ -57,6 +58,37 @@ func main() {
 	{
 		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
+	}
+
+	// Protected routes (require authentication)
+	protected := r.Group("/api")
+	protected.Use(middleware.AuthMiddleware())
+	{
+		protected.GET("/profile", handlers.GetProfile)
+		protected.POST("/change-password", handlers.ChangePassword)
+
+		// Available to all authenticated users
+		protected.GET("/modules", handlers.GetAllModules)
+		protected.GET("/modules/:moduleID", handlers.GetModule)
+		protected.GET("/modules/search", handlers.GetModulesByDepartment)
+		protected.GET("/departments", handlers.GetAllDepartments)
+
+		// Student routes
+		protected.POST("/enrollments", handlers.EnrollModule)
+		protected.GET("/enrollments/:studentID", handlers.GetStudentEnrollments)
+		protected.PUT("/enrollments/:enrollmentID/drop", handlers.DropModule)
+
+		// Admin only routes
+		admin := protected.Group("")
+		admin.Use(middleware.RequireRole("admin"))
+		{
+			admin.POST("/admin/create", handlers.CreateAdminProfile)
+			admin.POST("/admin/users", handlers.CreateUserAccount)
+			admin.POST("/lecturer/create", handlers.CreateLecturerProfile)
+			admin.POST("/student/create", handlers.CreateStudentProfile)
+			admin.POST("/modules", handlers.CreateModule)
+			admin.POST("/departments", handlers.CreateDepartment)
+		}
 	}
 
 	// Database initialization (run once to seed data)

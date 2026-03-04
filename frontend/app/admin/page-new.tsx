@@ -13,9 +13,6 @@ interface Module {
   description: string;
   credits: number;
   semester: number;
-  type?: string;
-  departmentID?: string;
-  yearOfStudy?: number;
 }
 
 export default function AdminPage() {
@@ -27,15 +24,11 @@ export default function AdminPage() {
   const [formData, setFormData] = useState({
     title: '',
     code: '',
-    departmentID: '',
     courseID: '',
     lecturerID: '',
-    type: 'compulsory',
     description: '',
     credits: 3,
     semester: 1,
-    yearOfStudy: 1,
-    prerequisites: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
@@ -77,7 +70,7 @@ export default function AdminPage() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'credits' || name === 'semester' || name === 'yearOfStudy' ? parseInt(value) : value,
+      [name]: name === 'credits' || name === 'semester' ? parseInt(value) : value,
     }));
   };
 
@@ -96,15 +89,11 @@ export default function AdminPage() {
       setFormData({
         title: '',
         code: '',
-        departmentID: '',
         courseID: '',
         lecturerID: '',
-        type: 'compulsory',
         description: '',
         credits: 3,
         semester: 1,
-        yearOfStudy: 1,
-        prerequisites: [],
       });
       setShowForm(false);
 
@@ -138,20 +127,12 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-800">UniEnroll - Admin Panel</h1>
           <div className="flex items-center gap-4">
-            <Link href="/profile" className="text-gray-700 hover:text-blue-600 font-semibold">
-              {user?.name}
-            </Link>
+            <span className="text-gray-700">{user?.name}</span>
             <span className="px-3 py-1 bg-red-600 text-white rounded-full text-sm capitalize">
               {user?.role}
             </span>
-            <Link href="/departments" className="text-blue-600 font-semibold hover:underline">
-              Departments
-            </Link>
             <Link href="/dashboard" className="text-blue-600 font-semibold hover:underline">
               Dashboard
-            </Link>
-            <Link href="/profile" className="text-blue-600 font-semibold hover:underline">
-              Profile
             </Link>
             <button
               onClick={handleLogout}
@@ -213,34 +194,6 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Department ID *</label>
-                  <input
-                    type="text"
-                    name="departmentID"
-                    value={formData.departmentID}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                    placeholder="e.g., dept-123"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Module Type *</label>
-                  <select
-                    name="type"
-                    value={formData.type}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                    required
-                  >
-                    <option value="compulsory">Compulsory</option>
-                    <option value="elective">Elective</option>
-                    <option value="faculty">Faculty (Cross-Department)</option>
-                  </select>
-                </div>
-
-                <div>
                   <label className="block text-gray-700 font-semibold mb-2">Course ID *</label>
                   <input
                     type="text"
@@ -263,19 +216,6 @@ export default function AdminPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                     placeholder="e.g., lecturer-456"
                     required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Year of Study</label>
-                  <input
-                    type="number"
-                    name="yearOfStudy"
-                    value={formData.yearOfStudy}
-                    onChange={handleInputChange}
-                    min="1"
-                    max="5"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
@@ -337,52 +277,20 @@ export default function AdminPage() {
             <p className="text-gray-600">No modules yet. Create one to get started!</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {modules.map((module) => {
-                const getTypeColor = (type?: string) => {
-                  switch (type) {
-                    case 'compulsory': return 'bg-red-100 text-red-700';
-                    case 'elective': return 'bg-blue-100 text-blue-700';
-                    case 'faculty': return 'bg-green-100 text-green-700';
-                    default: return 'bg-gray-100 text-gray-700';
-                  }
-                };
-                
-                const getTypeName = (type?: string) => {
-                  switch (type) {
-                    case 'compulsory': return 'Compulsory';
-                    case 'elective': return 'Elective';
-                    case 'faculty': return 'Faculty';
-                    default: return 'Module';
-                  }
-                };
-                
-                return (
-                  <div
-                    key={module.moduleID}
-                    className="border border-gray-300 rounded-lg p-4 hover:shadow-lg transition"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-lg font-semibold text-gray-800">{module.title}</h3>
-                      {module.type && (
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getTypeColor(module.type)}`}>
-                          {getTypeName(module.type)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm font-mono text-blue-600 mb-2">{module.code}</p>
-                    <p className="text-gray-700 text-sm mb-3">{module.description}</p>
-                    <div className="flex justify-between text-sm text-gray-600 border-t pt-3">
-                      <span>💳 {module.credits} Credits</span>
-                      <span>📚 Sem {module.semester}</span>
-                    </div>
-                    {module.yearOfStudy && (
-                      <div className="mt-2 text-xs text-gray-500">
-                        Year {module.yearOfStudy}
-                      </div>
-                    )}
+              {modules.map((module) => (
+                <div
+                  key={module.moduleID}
+                  className="border border-gray-300 rounded-lg p-4 hover:shadow-lg transition"
+                >
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">{module.title}</h3>
+                  <p className="text-sm font-mono text-blue-600 mb-2">{module.code}</p>
+                  <p className="text-gray-700 text-sm mb-3">{module.description}</p>
+                  <div className="flex justify-between text-sm text-gray-600 border-t pt-3">
+                    <span>💳 {module.credits} Credits</span>
+                    <span>📚 Sem {module.semester}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>
